@@ -19,7 +19,7 @@ const getClient = (): GoogleGenerativeAI => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
   if (!apiKey || apiKey === 'your_api_key_here') {
     throw new Error(
-      'Gemini API key not set. Add your key to the .env file: VITE_GEMINI_API_KEY=AIza...'
+      'Gemini API key not configured. Please contact the site owner.'
     );
   }
   return new GoogleGenerativeAI(apiKey);
