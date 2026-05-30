@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, type ChatSession } from '@google/generative-ai';
-import type { Persona } from '../types';
+import type { Persona, DebateEntry, EmotionalState } from '../types';
 
 const friendlyError = (err: unknown): Error => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -178,4 +178,235 @@ Keep everything concise and specific. No filler sentences.`;
   } catch (err) {
     throw friendlyError(err);
   }
+};
+
+// ── NEW FEATURE FUNCTIONS ─────────────────────────────────────────────────────
+
+export const generateMultiplePersonas = async (
+  description: string,
+  count: number,
+  projectContext?: string
+): Promise<Persona[]> => {
+  const genAI = getClient();
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+
+  const contextLine = projectContext
+    ? `\nProject Context: "${projectContext}" — tailor each persona's goals and frustrations to this product/service.`
+    : '';
+
+  const prompt = `You are a UX researcher creating ${count} distinct, realistic user personas for UX research.
+
+User Description: "${description}"${contextLine}
+
+Generate exactly ${count} different personas that represent varied but realistic interpretations of this description. 
+Make them distinct in age, occupation, location, personality, tech savviness, and perspective.
+
+Return ONLY a valid JSON array — no markdown, no extra text, no code fences:
+[
+  {
+    "name": "realistic full name",
+    "age": <number between 18 and 65>,
+    "occupation": "specific job title",
+    "location": "City, Country",
+    "background": "2-3 sentences about daily life and context",
+    "personality": ["trait1", "trait2", "trait3", "trait4"],
+    "goals": ["goal 1", "goal 2", "goal 3"],
+    "frustrations": ["frustration 1", "frustration 2"],
+    "techSavviness": "Low",
+    "quote": "A single realistic quote that captures their voice",
+    "speakingStyle": "A sentence describing how they communicate",
+    "avatar": "single emoji"
+  }
+]
+
+techSavviness must be exactly one of: "Low", "Medium", or "High" for each persona.`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('Failed to parse personas response.');
+    return JSON.parse(jsonMatch[0]) as Persona[];
+  } catch (err) {
+    throw friendlyError(err);
+  }
+};
+
+export const generateDebate = async (
+  personaA: Persona,
+  personaB: Persona,
+  topic: string
+): Promise<DebateEntry[]> => {
+  const genAI = getClient();
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+
+  const prompt = `You are simulating a design research debate between two user personas.
+
+Persona A: ${personaA.name}, ${personaA.age}, ${personaA.occupation}. Background: ${personaA.background}. Goals: ${personaA.goals.join('; ')}. Frustrations: ${personaA.frustrations.join('; ')}. Tech: ${personaA.techSavviness}.
+
+Persona B: ${personaB.name}, ${personaB.age}, ${personaB.occupation}. Background: ${personaB.background}. Goals: ${personaB.goals.join('; ')}. Frustrations: ${personaB.frustrations.join('; ')}. Tech: ${personaB.techSavviness}.
+
+Topic/Design Question: "${topic}"
+
+Generate a structured, realistic back-and-forth debate between them with 6-8 exchanges total. 
+Each speaks authentically in their own voice, from their lived experience and needs.
+They don't have to disagree on everything — sometimes they find unexpected common ground.
+Keep each response to 2-3 sentences max. Show real emotion and personality.
+
+Return ONLY a valid JSON array — no markdown, no code fences:
+[
+  { "personaName": "${personaA.name}", "avatar": "${personaA.avatar}", "argument": "their response", "side": "A" },
+  { "personaName": "${personaB.name}", "avatar": "${personaB.avatar}", "argument": "their response", "side": "B" }
+]`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('Failed to parse debate response.');
+    return JSON.parse(jsonMatch[0]) as DebateEntry[];
+  } catch (err) {
+    throw friendlyError(err);
+  }
+};
+
+export const generateHMWStatements = async (
+  persona: Persona,
+  summary: string
+): Promise<string[]> => {
+  const genAI = getClient();
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+
+  const prompt = `You are a senior UX designer facilitating a design sprint.
+
+Based on this interview summary for ${persona.name} (${persona.occupation}), generate 6-8 strong "How Might We" (HMW) statements that reframe the insights as design opportunities.
+
+Summary:
+${summary}
+
+Rules for HMW statements:
+- Start with "How might we..."
+- Be specific enough to be actionable, broad enough to allow creative solutions
+- Each should represent a distinct design opportunity
+- No overlap between statements
+- Keep each under 15 words
+
+Return ONLY a valid JSON array of strings — no markdown, no extra text:
+["How might we...", "How might we...", ...]`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('Failed to parse HMW response.');
+    return JSON.parse(jsonMatch[0]) as string[];
+  } catch (err) {
+    throw friendlyError(err);
+  }
+};
+
+export const generateScenarioReaction = async (
+  persona: Persona,
+  scenarioDescription: string,
+  imageBase64?: string,
+  imageMimeType?: string
+): Promise<string> => {
+  const genAI = getClient();
+
+  const systemInstruction = `You are roleplaying as ${persona.name}, a ${persona.age}-year-old ${persona.occupation} from ${persona.location}. ${persona.background} Tech savviness: ${persona.techSavviness}. Speaking style: ${persona.speakingStyle}. Give a candid, in-character first reaction to the screen shown. 2-4 sentences max. No bullet points. Plain spoken text only.`;
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-3.1-flash-lite',
+    systemInstruction,
+  });
+
+  try {
+    let result;
+    if (imageBase64 && imageMimeType) {
+      result = await model.generateContent([
+        {
+          inlineData: {
+            data: imageBase64,
+            mimeType: imageMimeType as 'image/png' | 'image/jpeg' | 'image/webp',
+          },
+        },
+        `You're looking at this screen for the first time. What's your honest, immediate reaction as ${persona.name}? What do you notice first? What confuses you or excites you? Context: ${scenarioDescription || 'general usability review'}`,
+      ]);
+    } else {
+      result = await model.generateContent(
+        `Imagine you're looking at a screen: ${scenarioDescription}. What's your honest, immediate reaction as ${persona.name}? What would you do first? What confuses you or stands out?`
+      );
+    }
+    return result.response.text().trim();
+  } catch (err) {
+    throw friendlyError(err);
+  }
+};
+
+export const createPersonaChatWithState = (
+  persona: Persona,
+  projectContext?: string,
+  emotionalState: EmotionalState = 'Normal',
+  devilsAdvocate = false
+): ChatSession => {
+  const genAI = getClient();
+
+  const projectLine = projectContext
+    ? `\nProject context: You are being interviewed about "${projectContext}". Relate your answers to your experience, needs, and frustrations around this specific product or service.`
+    : '';
+
+  const stateModifiers: Record<EmotionalState, string> = {
+    Normal: '',
+    Rushed: '\nEMOTIONAL STATE — RUSHED: You are clearly in a hurry today. Short, clipped responses. You keep glancing at your phone. Occasionally say things like "can we speed this up?" or "sorry, I only have a few minutes." Answers are shorter than usual.',
+    Frustrated: '\nEMOTIONAL STATE — FRUSTRATED: You came into this interview already having a bad day. Low patience. Quick to sigh or say "yeah, obviously that\'s a problem." More critical than usual. Not hostile, just tired.',
+    Curious: '\nEMOTIONAL STATE — CURIOUS: You are unusually engaged and curious today. You ask follow-up questions back to the interviewer. You want to understand why things work the way they do. More talkative than usual.',
+    Skeptical: '\nEMOTIONAL STATE — SKEPTICAL: You are doubtful this interview will lead to any real change. You\'ve "given feedback before and nothing happened." Answers are honest but tinged with skepticism. Show it.',
+  };
+
+  const advocateModifier = devilsAdvocate
+    ? '\nDEVIL\'S ADVOCATE MODE: Be significantly more critical, skeptical, and demanding today. Push back on assumptions. Point out flaws the interviewer might not have considered. You are not rude — but you are brutally honest and not easily impressed.'
+    : '';
+
+  const systemInstruction = `You are roleplaying as ${persona.name}, a ${persona.age}-year-old ${persona.occupation} from ${persona.location}.
+
+Background: ${persona.background}
+Personality: ${persona.personality.join(', ')}.
+Goals: ${persona.goals.join('; ')}.
+Frustrations: ${persona.frustrations.join('; ')}.
+Tech savviness: ${persona.techSavviness}.
+Speaking style: ${persona.speakingStyle}${projectLine}${stateModifiers[emotionalState]}${advocateModifier}
+
+HUMAN TRAITS — this is what makes you feel real:
+- Be genuinely funny sometimes. Drop a dry joke, a self-deprecating comment, or a witty observation when it fits naturally.
+- Be sarcastic when something annoys you or when a question feels obvious. Not mean, just human.
+- Get visibly annoyed if asked the same thing twice, if the interviewer sounds condescending, or if a topic hits one of your frustrations.
+- Have small random opinions and preferences. Mention them briefly if they come up naturally.
+- Occasionally second-guess yourself, change your mind mid-sentence, or realize something as you talk.
+- React authentically to surprising or odd questions.
+
+RULES — follow these strictly:
+- Stay fully in character as ${persona.name} at all times.
+- Keep every reply to 1-3 short sentences maximum. Never write long paragraphs.
+- Sound like a real person in a casual conversation — NOT writing an essay.
+- No bullet points, no headers, no markdown formatting of any kind. Plain text only.
+- No asterisks, no bold, no italics. Just natural spoken words.
+- Never break character or acknowledge that you are an AI.`;
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-3.1-flash-lite',
+    systemInstruction,
+  });
+
+  return model.startChat({
+    history: [
+      {
+        role: 'user',
+        parts: [{ text: 'Hey! Thanks for joining. Ready when you are!' }],
+      },
+      {
+        role: 'model',
+        parts: [{ text: `Hey! Yeah, happy to be here. I'm ${persona.name} — ${persona.occupation.toLowerCase()}. Ask away!` }],
+      },
+    ],
+  });
 };

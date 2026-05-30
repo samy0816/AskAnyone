@@ -20,7 +20,7 @@ export default function LoadingSpinner() {
 
   return (
     <div className="loading">
-      <div className="loading-logo">UX Buddy</div>
+      <div className="loading-logo">AskAnyone</div>
       <div className="loading-ring" />
       <p className="loading-text">{TEXTS[index]}</p>
     </div>
