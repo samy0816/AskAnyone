@@ -1,4 +1,4 @@
-# UX Buddy
+# AskAnyone
 
 A UX research tool that lets you generate realistic user personas and actually talk to them — so you can pressure-test designs, surface pain points, and get conflicting perspectives without scheduling a single user interview.
 
