@@ -9,7 +9,7 @@ Built with React, TypeScript, Vite, and Google Gemini.
 ## What it does
 
 ### Persona Generation
-Describe your target user — their background, goals, frustrations, and tech comfort level. UX Buddy generates a fully fleshed-out persona with a realistic speaking style, then lets you have a live conversation with them in character.
+Describe your target user — their background, goals, frustrations, and tech comfort level. AskAnyone generates a fully fleshed-out persona with a realistic speaking style, then lets you have a live conversation with them in character.
 
 ### Live Interview Chat
 Chat directly with your persona. They respond in character, flag things that would confuse them, and give you honest reactions to your ideas. Every message can be tagged (pain point, goal, delight, confusion, opportunity) so patterns are easy to spot later.

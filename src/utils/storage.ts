@@ -1,6 +1,6 @@
 import type { SavedPersona, Message } from '../types';
 
-const PERSONAS_KEY = 'ux-buddy-personas';
+const PERSONAS_KEY = 'askanyone-personas';
 
 export const getSavedPersonas = (): SavedPersona[] => {
   try {
