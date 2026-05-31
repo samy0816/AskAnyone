@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import type { ChatSession } from '@google/generative-ai';
-import type { AppView, EmotionalState, Message, MessageTag, Persona, SavedPersona } from './types';
+import type { AppView, EmotionalState, LoadingMode, Message, MessageTag, Persona, SavedPersona } from './types';
 import {
   createPersonaChatWithState,
   generateMultiplePersonas,
@@ -29,6 +29,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string>('');
   const [projectContext, setProjectContext] = useState<string>('');
+  const [userDescription, setUserDescription] = useState<string>('');
+  const [loadingMode, setLoadingMode] = useState<LoadingMode>('persona');
   const [devilsAdvocate, setDevilsAdvocate] = useState(false);
   const [emotionalState, setEmotionalState] = useState<EmotionalState>('Normal');
   const [savedPersonaId, setSavedPersonaId] = useState<string | null>(null);
@@ -38,13 +40,20 @@ function App() {
   const handleGeneratePersona = async (description: string, project: string, count: number) => {
     setError(null);
     setProjectContext(project);
+    setUserDescription(description);
     setDevilsAdvocate(false);
     setSavedPersonaId(null);
+    setLoadingMode(count > 1 ? 'room' : 'persona');
     setView('loading');
     try {
       if (count > 1) {
         const personas = await generateMultiplePersonas(description, count, project);
         setRoomPersonas(personas);
+        // Auto-save each room persona to library so they survive navigation
+        personas.forEach(p => {
+          const id = `room-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          savePersonaToLibrary({ id, persona: p, projectContext: project, createdAt: new Date().toISOString() });
+        });
         setView('room');
       } else {
         const p = await generatePersona(description, project);
@@ -217,9 +226,11 @@ function App() {
           onOpenLibrary={() => setView('library')}
           onOpenDebate={() => setView('debate')}
           error={error}
+          initialDescription={userDescription}
+          initialProject={projectContext}
         />
       )}
-      {view === 'loading' && <LoadingSpinner />}
+      {view === 'loading' && <LoadingSpinner mode={loadingMode} />}
       {view === 'persona' && persona && (
         <PersonaCard
           persona={persona}
@@ -273,6 +284,7 @@ function App() {
       {view === 'scenario' && persona && (
         <ScenarioTest
           persona={persona}
+          extraPersonas={getSavedPersonas().map(s => s.persona).filter(p => p.name !== persona.name).slice(0, 4)}
           onBack={() => setView('persona')}
         />
       )}

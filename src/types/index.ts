@@ -40,6 +40,34 @@ export interface DebateEntry {
   side: 'A' | 'B';
 }
 
+// region is one of: top-left, top-center, top-right,
+//   middle-left, middle-center, middle-right,
+//   bottom-left, bottom-center, bottom-right
+export interface ScenarioHotspot {
+  region: string;
+  label: string;
+  type: 'pain' | 'interest' | 'confusion';
+  personaName: string;
+}
+
+export interface ScenarioPersonaResult {
+  personaName: string;
+  avatar: string;
+  firstImpression: string;
+  flowThoughts: string;
+  painPoints: string[];
+  highInterestAreas: string[];
+  hotspots: ScenarioHotspot[];
+}
+
+export interface ScenarioAnalysis {
+  reactions: ScenarioPersonaResult[];
+  sharedInsights: string[];
+  designOpportunities: string[];
+}
+
+export type LoadingMode = 'persona' | 'room' | 'debate' | 'summary' | 'scenario';
+
 export type AppView =
   | 'home'
   | 'loading'

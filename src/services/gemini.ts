@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, type ChatSession } from '@google/generative-ai';
-import type { Persona, DebateEntry, EmotionalState } from '../types';
+import type { Persona, DebateEntry, EmotionalState, ScenarioAnalysis } from '../types';
 
 const friendlyError = (err: unknown): Error => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -409,4 +409,79 @@ RULES — follow these strictly:
       },
     ],
   });
+};
+
+export const generateMultiScenarioAnalysis = async (
+  personas: Persona[],
+  scenarioDescription: string,
+  imageBase64?: string,
+  imageMimeType?: string
+): Promise<ScenarioAnalysis> => {
+  const genAI = getClient();
+
+  const personaDescriptions = personas.map(p =>
+    `- ${p.name} (${p.age}, ${p.occupation}, tech: ${p.techSavviness}): ${p.background} Goals: ${p.goals.join('; ')}. Frustrations: ${p.frustrations.join('; ')}.`
+  ).join('\n');
+
+  const hotspotNote = imageBase64
+    ? `Since an image is provided, for each hotspot describe WHERE on the screen it is using one of these exact region names: "top-left", "top-center", "top-right", "middle-left", "middle-center", "middle-right", "bottom-left", "bottom-center", "bottom-right". Pick the region that best matches where the element actually appears in the image.`
+    : `Since no image is provided, omit hotspots (use an empty array).`;
+
+  const prompt = `You are a senior UX researcher analyzing how ${personas.length} distinct user personas would react to a design screen.
+
+Personas:
+${personaDescriptions}
+
+Scenario: "${scenarioDescription || 'General usability review of the uploaded screen'}"
+
+${hotspotNote}
+
+For each persona provide:
+1. A candid first impression (2-3 sentences, in their voice)
+2. How they would navigate/flow through this screen (2-3 sentences)
+3. 2-3 specific pain points they would hit
+4. 1-2 areas that would attract their attention or interest
+5. 2-4 hotspots with type "pain", "interest", or "confusion"
+
+Also provide:
+- 2-3 shared insights across all personas
+- 2-3 design opportunities identified from the combined feedback
+
+Return ONLY a valid JSON object, no markdown, no code fences:
+{
+  "reactions": [
+    {
+      "personaName": "...",
+      "avatar": "...",
+      "firstImpression": "...",
+      "flowThoughts": "...",
+      "painPoints": ["...", "..."],
+      "highInterestAreas": ["...", "..."],
+      "hotspots": [
+        { "region": "bottom-center", "label": "CTA button hard to find", "type": "pain", "personaName": "..." }
+      ]
+    }
+  ],
+  "sharedInsights": ["...", "..."],
+  "designOpportunities": ["...", "..."]
+}`;
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
+    let result;
+    if (imageBase64 && imageMimeType) {
+      result = await model.generateContent([
+        { inlineData: { data: imageBase64, mimeType: imageMimeType as 'image/png' | 'image/jpeg' | 'image/webp' } },
+        prompt,
+      ]);
+    } else {
+      result = await model.generateContent(prompt);
+    }
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Failed to parse scenario analysis.');
+    return JSON.parse(jsonMatch[0]) as ScenarioAnalysis;
+  } catch (err) {
+    throw friendlyError(err);
+  }
 };

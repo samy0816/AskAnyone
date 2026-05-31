@@ -6,11 +6,13 @@ interface Props {
   onOpenLibrary: () => void;
   onOpenDebate: () => void;
   error: string | null;
+  initialDescription?: string;
+  initialProject?: string;
 }
 
-export default function DescriptionInput({ onSubmit, onOpenLibrary, onOpenDebate, error }: Props) {
-  const [value, setValue] = useState('');
-  const [project, setProject] = useState('');
+export default function DescriptionInput({ onSubmit, onOpenLibrary, onOpenDebate, error, initialDescription = '', initialProject = '' }: Props) {
+  const [value, setValue] = useState(initialDescription);
+  const [project, setProject] = useState(initialProject);
   const [mode, setMode] = useState<'single' | 'room'>('single');
   const savedCount = getSavedPersonas().length;
 

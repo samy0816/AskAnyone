@@ -64,7 +64,12 @@ export default function DebateView({ onBack }: Props) {
                 </button>
               ))}
               {savedPersonas.length === 0 && (
-                <p className="debate-empty-note">Save personas to your library first.</p>
+                <div className="debate-empty-cta">
+                  <p>No saved personas yet.</p>
+                  <button className="btn-ghost btn-sm" onClick={onBack}>
+                    ← Create and save a persona first
+                  </button>
+                </div>
               )}
             </div>
           </div>
