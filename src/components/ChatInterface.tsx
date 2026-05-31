@@ -284,6 +284,7 @@ export default function ChatInterface({
           placeholder={`Ask ${persona.name} something...`}
           rows={1}
           disabled={isTyping}
+          maxLength={800}
         />
         <button
           type="submit"

@@ -74,6 +74,7 @@ export default function DescriptionInput({ onSubmit, onOpenLibrary, onOpenDebate
             onChange={e => setValue(e.target.value)}
             placeholder="e.g. A 30-year-old nurse who struggles with hospital scheduling apps and wants better tools for shift management..."
             rows={4}
+            maxLength={1000}
           />
           <div className="char-hint">
             {value.trim().length < 10 && value.length > 0
