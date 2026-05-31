@@ -327,6 +327,62 @@
   backdrop-filter: blur(8px);
 }
 
+.home-how-it-works {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(124,110,250,0.06);
+  border: 1px solid rgba(124,110,250,0.15);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  width: 100%;
+  max-width: 580px;
+  flex-wrap: wrap;
+  animation: fadeUp 0.5s ease 0.15s both;
+}
+
+.how-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.how-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.how-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.how-arrow {
+  color: var(--text-muted);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.home-storage-notice {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 4px;
+  opacity: 0.6;
+}
+
 .home-examples {
   width: 100%;
   max-width: 580px;

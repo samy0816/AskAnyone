@@ -27,9 +27,28 @@ export default function DescriptionInput({ onSubmit, onOpenLibrary, onOpenDebate
       <div className="home-hero">
         <h1 className="home-title">AskAnyone</h1>
         <p className="home-subtitle">
-          Describe a user and instantly get a humanized persona you can interview.
+          Describe a user. Get a realistic persona. Interview them — and find out what they actually think of your design.
         </p>
       </div>
+
+      {savedCount === 0 && (
+        <div className="home-how-it-works">
+          <div className="how-step">
+            <span className="how-num">1</span>
+            <span className="how-text">Describe who you want to interview</span>
+          </div>
+          <span className="how-arrow">→</span>
+          <div className="how-step">
+            <span className="how-num">2</span>
+            <span className="how-text">Get a humanized persona instantly</span>
+          </div>
+          <span className="how-arrow">→</span>
+          <div className="how-step">
+            <span className="how-num">3</span>
+            <span className="how-text">Chat, test screens, run debates</span>
+          </div>
+        </div>
+      )}
 
       {/* Nav row */}
       <div className="home-nav-row">
@@ -130,6 +149,8 @@ export default function DescriptionInput({ onSubmit, onOpenLibrary, onOpenDebate
           ))}
         </div>
       </div>
+
+      <p className="home-storage-notice">Personas are saved in your browser. Clearing browser data will remove them.</p>
     </div>
   );
 }
