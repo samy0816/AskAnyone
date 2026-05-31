@@ -6,11 +6,14 @@ import { createPersonaChatWithState, sendChatMessage } from '../services/gemini'
 interface Props {
   personas: Persona[];
   projectContext: string;
+  roomMessages: RoomMessage[];
+  onRoomMessagesChange: (msgs: RoomMessage[]) => void;
   onBack: () => void;
   onPickPersona: (persona: Persona) => void;
+  onEndRoom: (messages: RoomMessage[]) => void;
 }
 
-interface RoomMessage {
+export interface RoomMessage {
   id: string;
   personaName: string;
   personaAvatar: string;
@@ -24,30 +27,72 @@ const TECH_COLORS: Record<string, string> = {
   High: '#10B981',
 };
 
-export default function MultiPersonaRoom({ personas, projectContext, onBack, onPickPersona }: Props) {
-  const [roomMessages, setRoomMessages] = useState<RoomMessage[]>([]);
+const TEMPLATES: Record<string, string[]> = {
+  'Usability': [
+    "Can you walk me through how you'd typically use something like this?",
+    "What's the first thing you'd do when you open this for the first time?",
+    "Is there anything on here that confuses you or feels unclear?",
+    "What would make you close this and never come back?",
+  ],
+  'Feature': [
+    "If this feature disappeared tomorrow, would you miss it?",
+    "What would make this feature 10x more useful to you?",
+    "Have you tried anything else that does something similar?",
+    "Who else in your life or work would benefit from this?",
+  ],
+  'Onboarding': [
+    "When you tried a new app recently, what made you stick with it?",
+    "What's the most frustrating part of getting started with new tools?",
+    "Would you prefer a guided tutorial or just exploring on your own?",
+    "What would convince you to create an account vs. just browsing?",
+  ],
+  'Emotions': [
+    "How does using this make you feel in the moment?",
+    "Was there a moment that surprised you — good or bad?",
+    "What would you tell a friend about this?",
+    "Does this feel like something made for someone like you?",
+  ],
+};
+
+export default function MultiPersonaRoom({ personas, projectContext, roomMessages, onRoomMessagesChange, onBack, onPickPersona, onEndRoom }: Props) {
+  const setRoomMessages = (msgs: RoomMessage[]) => { msgsRef.current = msgs; onRoomMessagesChange(msgs); };
+  const msgsRef = useRef<RoomMessage[]>(roomMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [activeTyping, setActiveTyping] = useState<string[]>([]);
+  const [devilsAdvocate, setDevilsAdvocate] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string>('Usability');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatsRef = useRef<Record<string, ChatSession>>({});
 
-  useEffect(() => {
-    // Initialize chat sessions for each persona
+  const initChats = (da: boolean) => {
     personas.forEach(p => {
-      chatsRef.current[p.name] = createPersonaChatWithState(p, projectContext);
+      const roommates = personas.filter(r => r.name !== p.name);
+      chatsRef.current[p.name] = createPersonaChatWithState(p, projectContext, 'Normal', da, roommates);
     });
+  };
 
-    // Welcome messages
-    const welcomes: RoomMessage[] = personas.map(p => ({
-      id: `welcome-${p.name}`,
-      personaName: p.name,
-      personaAvatar: p.avatar,
-      content: `Hey, I'm ${p.name} — ${p.occupation.toLowerCase()}. Happy to be here.`,
-      timestamp: new Date(),
-    }));
-    setRoomMessages(welcomes);
+  useEffect(() => {
+    initChats(false);
+    // Only populate welcome messages the first time (empty room)
+    if (roomMessages.length === 0) {
+      const welcomes: RoomMessage[] = personas.map(p => ({
+        id: `welcome-${p.name}`,
+        personaName: p.name,
+        personaAvatar: p.avatar,
+        content: `Hey, I'm ${p.name} — ${p.occupation.toLowerCase()}. Happy to be here.`,
+        timestamp: new Date(),
+      }));
+      setRoomMessages(welcomes);
+    }
   }, []);
+
+  const handleToggleDA = () => {
+    const next = !devilsAdvocate;
+    setDevilsAdvocate(next);
+    initChats(next);
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -67,16 +112,28 @@ export default function MultiPersonaRoom({ personas, projectContext, onBack, onP
       content: trimmed,
       timestamp: new Date(),
     };
-    setRoomMessages(prev => [...prev, userMsg]);
+    setRoomMessages([...msgsRef.current, userMsg]);
 
-    // Ask each persona sequentially to simulate natural turn-taking
+    // Ask each persona sequentially — each one sees what the others before them said
+    const roundResponses: { name: string; text: string }[] = [];
+
     for (const persona of personas) {
       setActiveTyping(prev => [...prev, persona.name]);
       try {
-        const response = await sendChatMessage(chatsRef.current[persona.name], trimmed);
+        // Build context message: what others already said this round
+        const priorContext = roundResponses.length > 0
+          ? `[Before you answer, here's what the others just said to the same question:\n${roundResponses.map(r => `${r.name}: "${r.text}"`).join('\n')}\nNow respond naturally as yourself. You can agree, disagree, or just answer independently — don't feel obligated to reference them every time.]`
+          : trimmed;
+
+        const messageToSend = roundResponses.length > 0
+          ? `${trimmed}\n\n${priorContext}`
+          : trimmed;
+
+        const response = await sendChatMessage(chatsRef.current[persona.name], messageToSend);
+        roundResponses.push({ name: persona.name, text: response });
         setActiveTyping(prev => prev.filter(n => n !== persona.name));
-        setRoomMessages(prev => [
-          ...prev,
+        setRoomMessages([
+          ...msgsRef.current,
           {
             id: `${Date.now()}-${persona.name}`,
             personaName: persona.name,
@@ -101,13 +158,40 @@ export default function MultiPersonaRoom({ personas, projectContext, onBack, onP
 
   return (
     <div className="room-page">
-      {/* Header */}
+      {/* Header — same layout as single chat */}
       <div className="room-header">
         <button className="back-btn-sm" onClick={onBack}>←</button>
         <div className="room-header-title">
-          <span className="room-icon">The Room</span>
+          <span className="room-icon">🗣️</span>
           <span>The Room</span>
           <span className="room-count-badge">{personas.length} participants</span>
+        </div>
+        <div className="chat-header-actions">
+          <div className="da-btn-wrapper">
+            <button
+              className={`chat-tool-btn ${devilsAdvocate ? 'chat-tool-btn-active' : ''}`}
+              onClick={handleToggleDA}
+            >
+              😈 {devilsAdvocate ? 'DA On' : 'DA'}
+            </button>
+            <div className="da-tooltip">
+              <strong>Devil's Advocate</strong>
+              <span>Makes all personas push back, challenge assumptions, and voice objections.</span>
+            </div>
+          </div>
+          <button
+            className={`chat-tool-btn ${showTemplates ? 'chat-tool-btn-active' : ''}`}
+            onClick={() => setShowTemplates(s => !s)}
+          >
+            Templates
+          </button>
+          <button
+            className="end-interview-btn"
+            onClick={() => onEndRoom(roomMessages)}
+            disabled={roomMessages.filter(m => m.personaName === 'You').length < 1}
+          >
+            End &amp; Summarise
+          </button>
         </div>
       </div>
 
@@ -175,6 +259,34 @@ export default function MultiPersonaRoom({ personas, projectContext, onBack, onP
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Template panel — same as single chat */}
+      {showTemplates && (
+        <div className="template-panel">
+          <div className="template-tabs">
+            {Object.keys(TEMPLATES).map(cat => (
+              <button
+                key={cat}
+                className={`template-tab ${activeCategory === cat ? 'template-tab-active' : ''}`}
+                onClick={() => setActiveCategory(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+          <div className="template-questions">
+            {TEMPLATES[activeCategory].map(q => (
+              <button
+                key={q}
+                className="template-question"
+                onClick={() => { setInput(q); setShowTemplates(false); }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Input */}
       <div className="room-input-bar">

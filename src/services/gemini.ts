@@ -432,12 +432,17 @@ export const createPersonaChatWithState = (
   persona: Persona,
   projectContext?: string,
   emotionalState: EmotionalState = 'Normal',
-  devilsAdvocate = false
+  devilsAdvocate = false,
+  roommates: Persona[] = []
 ): ChatSession => {
   const genAI = getClient();
 
   const projectLine = projectContext
     ? `\nProject context: You are being interviewed about "${projectContext}". Relate your answers to your experience, needs, and frustrations around this specific product or service.`
+    : '';
+
+  const roommatesLine = roommates.length > 0
+    ? `\nROOM CONTEXT: You are in a group session with ${roommates.map(r => `${r.name} (${r.occupation})`).join(' and ')}. You know their general backgrounds: ${roommates.map(r => `${r.name} cares about ${r.goals[0]?.toLowerCase() ?? 'their own goals'} and gets frustrated by ${r.frustrations[0]?.toLowerCase() ?? 'different things'}.`).join(' ')} Sometimes during the conversation you will be shown what they said before your turn. Only reference them when it genuinely makes sense — like a real person would. Do not force it. Most of the time just answer naturally as yourself.`
     : '';
 
   const stateModifiers: Record<EmotionalState, string> = {
@@ -459,7 +464,7 @@ Personality: ${persona.personality.join(', ')}.
 Goals: ${persona.goals.join('; ')}.
 Frustrations: ${persona.frustrations.join('; ')}.
 Tech savviness: ${persona.techSavviness}.
-Speaking style: ${persona.speakingStyle}${projectLine}${stateModifiers[emotionalState]}${advocateModifier}
+Speaking style: ${persona.speakingStyle}${projectLine}${roommatesLine}${stateModifiers[emotionalState]}${advocateModifier}
 
 HUMAN TRAITS — this is what makes you feel real:
 - Be genuinely funny sometimes. Drop a dry joke, a self-deprecating comment, or a witty observation when it fits naturally.

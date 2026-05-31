@@ -76,6 +76,7 @@ export type AppView =
   | 'summary'
   | 'library'
   | 'room'
+  | 'room-1on1'
   | 'room-loading'
   | 'debate'
   | 'debate-loading'

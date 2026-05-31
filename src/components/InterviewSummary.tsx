@@ -8,6 +8,8 @@ interface Props {
   messages: Message[];
   onNewInterview: () => void;
   onBack: () => void;
+  roomPersonas?: Persona[];
+  onSaveToLibrary?: () => void;
 }
 
 const SECTION_ICONS: Record<string, string> = {
@@ -47,7 +49,9 @@ function parseSummary(text: string) {
   return sections;
 }
 
-export default function InterviewSummary({ persona, summary, messages, onNewInterview, onBack }: Props) {
+export default function InterviewSummary({ persona, summary, messages, onNewInterview, onBack, roomPersonas, onSaveToLibrary }: Props) {
+  const isRoomSummary = roomPersonas && roomPersonas.length > 1;
+  const [savedToLibrary, setSavedToLibrary] = useState(false);
   const sections = parseSummary(summary);
   const [hmwStatements, setHmwStatements] = useState<string[]>([]);
   const [isGeneratingHMW, setIsGeneratingHMW] = useState(false);
@@ -123,10 +127,16 @@ export default function InterviewSummary({ persona, summary, messages, onNewInte
         </div>
 
         <div className="summary-title-row">
-          <div className="summary-avatar">{persona.avatar}</div>
+          <div className="summary-avatar">
+            {persona.avatar}
+          </div>
           <div>
-            <h2 className="summary-title">Interview Summary</h2>
-            <p className="summary-sub">{persona.name} · {persona.occupation}</p>
+            <h2 className="summary-title">{isRoomSummary ? 'Room Summary' : 'Interview Summary'}</h2>
+            <p className="summary-sub">
+              {isRoomSummary
+                ? roomPersonas.map(p => p.name).join(', ')
+                : `${persona.name} · ${persona.occupation}`}
+            </p>
           </div>
         </div>
 
@@ -222,6 +232,16 @@ export default function InterviewSummary({ persona, summary, messages, onNewInte
         <button className="btn-primary btn-full" onClick={onNewInterview}>
           Start New Interview →
         </button>
+        {isRoomSummary && onSaveToLibrary && (
+          <button
+            className={`btn-ghost btn-full${savedToLibrary ? ' btn-saved' : ''}`}
+            style={{ marginTop: 10 }}
+            onClick={() => { if (!savedToLibrary) { onSaveToLibrary(); setSavedToLibrary(true); } }}
+            disabled={savedToLibrary}
+          >
+            {savedToLibrary ? '✓ Personas saved to Library' : 'Save personas to Library'}
+          </button>
+        )}
       </div>
     </div>
   );

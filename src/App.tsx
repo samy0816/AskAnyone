@@ -15,7 +15,7 @@ import PersonaCard from './components/PersonaCard';
 import ChatInterface from './components/ChatInterface';
 import InterviewSummary from './components/InterviewSummary';
 import PersonaLibrary from './components/PersonaLibrary';
-import MultiPersonaRoom from './components/MultiPersonaRoom';
+import MultiPersonaRoom, { type RoomMessage } from './components/MultiPersonaRoom';
 import DebateView from './components/DebateView';
 import ScenarioTest from './components/ScenarioTest';
 import './App.css';
@@ -24,6 +24,7 @@ function App() {
   const [view, setView] = useState<AppView>('home');
   const [persona, setPersona] = useState<Persona | null>(null);
   const [roomPersonas, setRoomPersonas] = useState<Persona[]>([]);
+  const [roomMessages, setRoomMessages] = useState<RoomMessage[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +50,6 @@ function App() {
       if (count > 1) {
         const personas = await generateMultiplePersonas(description, count, project);
         setRoomPersonas(personas);
-        // Auto-save each room persona to library so they survive navigation
-        personas.forEach(p => {
-          const id = `room-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          savePersonaToLibrary({ id, persona: p, projectContext: project, createdAt: new Date().toISOString() });
-        });
         setView('room');
       } else {
         const p = await generatePersona(description, project);
@@ -85,7 +81,8 @@ function App() {
   const handleStartChat = (state: EmotionalState) => {
     if (!persona) return;
     setEmotionalState(state);
-    chatRef.current = createPersonaChatWithState(persona, projectContext, state, devilsAdvocate);
+    const roommates = roomPersonas.filter(p => p.name !== persona.name);
+    chatRef.current = createPersonaChatWithState(persona, projectContext, state, devilsAdvocate, roommates);
     setMessages([
       {
         id: '1',
@@ -102,7 +99,7 @@ function App() {
     const next = !devilsAdvocate;
     setDevilsAdvocate(next);
     // Restart chat session with new mode
-    chatRef.current = createPersonaChatWithState(persona, projectContext, emotionalState, next);
+    chatRef.current = createPersonaChatWithState(persona, projectContext, emotionalState, next, roomPersonas.filter(p => p.name !== persona.name));
     // Keep message history but reset the AI session
   };
 
@@ -195,17 +192,62 @@ function App() {
     setView('persona');
   };
 
+  // ── END ROOM SESSION ─────────────────────────────────────
+  const handleEndRoom = async (msgs: RoomMessage[]) => {
+    const roomMessages = msgs;
+    if (!roomPersonas.length) return;
+    setIsTyping(true);
+    setLoadingMode('summary');
+    setView('loading');
+    try {
+      // Use the first persona as the "anchor" for the summary function,
+      // but pass the full conversation as the transcript
+      const transcript = roomMessages
+        .filter(m => m.personaName !== 'You')
+        .map(m => ({ role: 'persona' as const, content: `[${m.personaName}] ${m.content}` }));
+      const userTurns = roomMessages
+        .filter(m => m.personaName === 'You')
+        .map(m => ({ role: 'user' as const, content: m.content }));
+      // Interleave preserving order by using all messages
+      const allMsgs = roomMessages.map(m => ({
+        role: m.personaName === 'You' ? 'user' as const : 'persona' as const,
+        content: m.personaName === 'You' ? m.content : `[${m.personaName}] ${m.content}`,
+      }));
+      void transcript; void userTurns;
+      const text = await generateInterviewSummary(roomPersonas[0], allMsgs);
+      setSummary(text);
+      setPersona(roomPersonas[0]);
+      setView('summary');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate summary.');
+      setView('room');
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   // ── PICK PERSONA FROM ROOM ───────────────────────────────
   const handlePickFromRoom = (p: Persona) => {
     setPersona(p);
     setMessages([]);
-    setView('persona');
+    const roommates = roomPersonas.filter(r => r.name !== p.name);
+    chatRef.current = createPersonaChatWithState(p, projectContext, 'Normal', false, roommates);
+    setMessages([
+      {
+        id: '1',
+        role: 'persona',
+        content: `Hey! Yeah, happy to be here. I'm ${p.name} — ${p.occupation.toLowerCase()}. Ask away!`,
+        timestamp: new Date(),
+      },
+    ]);
+    setView('room-1on1');
   };
 
   // ── NEW INTERVIEW ────────────────────────────────────────
   const handleNewInterview = () => {
     setPersona(null);
     setRoomPersonas([]);
+    setRoomMessages([]);
     setMessages([]);
     setSummary('');
     setProjectContext('');
@@ -241,13 +283,13 @@ function App() {
           isSaved={isSaved}
         />
       )}
-      {view === 'chat' && persona && (
+      {(view === 'chat' || view === 'room-1on1') && persona && (
         <ChatInterface
           persona={persona}
           messages={messages}
           onSendMessage={handleSendMessage}
           isTyping={isTyping}
-          onBack={() => setView('persona')}
+          onBack={() => setView(view === 'room-1on1' ? 'room' : 'persona')}
           onEndInterview={handleEndInterview}
           devilsAdvocate={devilsAdvocate}
           onToggleDevilsAdvocate={handleToggleDevilsAdvocate}
@@ -260,7 +302,14 @@ function App() {
           summary={summary}
           messages={messages}
           onNewInterview={handleNewInterview}
-          onBack={() => setView('chat')}
+          onBack={() => roomPersonas.length > 1 ? setView('room') : setView('chat')}
+          roomPersonas={roomPersonas.length > 1 ? roomPersonas : undefined}
+          onSaveToLibrary={roomPersonas.length > 1 ? () => {
+            roomPersonas.forEach(p => {
+              const id = `room-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+              savePersonaToLibrary({ id, persona: p, projectContext, createdAt: new Date().toISOString() });
+            });
+          } : undefined}
         />
       )}
       {view === 'library' && (
@@ -274,8 +323,11 @@ function App() {
         <MultiPersonaRoom
           personas={roomPersonas}
           projectContext={projectContext}
+          roomMessages={roomMessages}
+          onRoomMessagesChange={setRoomMessages}
           onBack={() => setView('home')}
           onPickPersona={handlePickFromRoom}
+          onEndRoom={handleEndRoom}
         />
       )}
       {view === 'debate' && (

@@ -2117,9 +2117,10 @@
   font-size: 16px;
   font-weight: 800;
   color: var(--text);
+  flex: 1;
 }
 
-.room-icon { font-size: 18px; }
+.room-icon { font-size: 20px; line-height: 1; }
 
 .room-count-badge {
   font-size: 11px;
@@ -2240,6 +2241,70 @@
   font-weight: 700;
   color: var(--text-muted);
   padding: 0 4px;
+}
+
+.room-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 20px 0;
+  flex-shrink: 0;
+}
+
+.room-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid var(--glass-border);
+  animation: fadeUp 0.15s ease;
+  flex-shrink: 0;
+}
+
+.template-cats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.template-cat-btn {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.template-cat-btn:hover { color: var(--text-secondary); border-color: var(--primary-muted); }
+.template-cat-active { border-color: var(--primary); color: #A78BFA; }
+
+.template-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.template-chip-sm {
+  font-family: var(--font);
+  font-size: 12px;
+  text-align: left;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1.4;
+}
+.template-chip-sm:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-muted);
+  color: var(--text);
 }
 
 .room-input-bar {
