@@ -21,6 +21,8 @@ export interface Message {
   content: string;
   timestamp: Date;
   tag?: MessageTag;
+  imageBase64?: string;
+  imageMimeType?: string;
 }
 
 export type EmotionalState = 'Normal' | 'Rushed' | 'Frustrated' | 'Curious' | 'Skeptical';

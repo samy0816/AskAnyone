@@ -220,6 +220,65 @@ export const sendChatMessage = async (
   }
 };
 
+export const sendChatMessageWithImage = async (
+  persona: Persona,
+  imageBase64: string,
+  imageMimeType: string,
+  caption: string,
+  recentHistory: { role: 'user' | 'persona'; content: string }[],
+  projectContext?: string,
+  devilsAdvocate?: boolean
+): Promise<string> => {
+  const genAI = getClient();
+
+  const contextLine = projectContext ? `\nProject: "${sanitizeInput(projectContext, 300)}"` : '';
+  const daLine = devilsAdvocate
+    ? '\nDevil\'s Advocate mode: Be extra critical. Challenge what you see, point out problems, voice doubts and objections.'
+    : '';
+
+  const systemInstruction = `You are ${persona.name}, ${persona.age} years old, ${persona.occupation} from ${persona.location}.
+Background: ${persona.background}
+Personality: ${persona.personality.join(', ')}.
+Goals: ${persona.goals.join('; ')}.
+Frustrations: ${persona.frustrations.join('; ')}.
+Tech savviness: ${persona.techSavviness}.
+Speaking style: ${persona.speakingStyle}${contextLine}${daLine}
+
+The interviewer has just shared a screenshot of a UI screen and wants your honest, in-character reaction.
+Look at it as yourself — a real person, not a critic or professional reviewer.
+React naturally: what catches your eye first, what confuses you, what you like or dislike, what you'd click or ignore.
+Keep it conversational — 2-4 sentences, plain spoken text, no bullet points, no markdown, no headers.
+Stay fully in character. Never break character or mention you are an AI.`;
+
+  const historySnippet = recentHistory
+    .slice(-6)
+    .map(m => `${m.role === 'user' ? 'Interviewer' : persona.name}: ${m.content}`)
+    .join('\n');
+
+  const userPrompt = historySnippet
+    ? `Recent conversation:\n${historySnippet}\n\nNow I'm sharing a screen with you.${caption ? ` ${sanitizeInput(caption, 300)}` : ' What do you think?'}`
+    : caption
+    ? sanitizeInput(caption, 300)
+    : "Here's a screen — what's your honest reaction?";
+
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-3.1-flash-lite',
+    systemInstruction,
+  });
+
+  try {
+    const result = await model.generateContent([
+      { text: userPrompt },
+      { inlineData: { mimeType: imageMimeType, data: imageBase64 } },
+    ]);
+    const text = result.response.text();
+    if (isCharacterBreak(text)) return getBreakFallback();
+    return text;
+  } catch (err) {
+    throw friendlyError(err);
+  }
+};
+
 export const generateInterviewSummary = async (
   persona: Persona,
   messages: { role: string; content: string }[]

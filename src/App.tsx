@@ -7,6 +7,7 @@ import {
   generatePersona,
   generateInterviewSummary,
   sendChatMessage,
+  sendChatMessageWithImage,
 } from './services/gemini';
 import { getSavedPersonas, savePersonaToLibrary, updatePersonaMessages } from './utils/storage';
 import DescriptionInput from './components/DescriptionInput';
@@ -142,6 +143,56 @@ function App() {
           id: (Date.now() + 1).toString(),
           role: 'persona',
           content: "Sorry, I didn't catch that. Could you say that again?",
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  // ── SEND IMAGE IN CHAT ─────────────────────────────────
+  const handleSendImage = async (imageBase64: string, imageMimeType: string, caption: string) => {
+    if (!persona) return;
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: caption || 'Here’s a screen I want to show you.',
+      imageBase64,
+      imageMimeType,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setIsTyping(true);
+
+    try {
+      const recentHistory = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
+      const response = await sendChatMessageWithImage(
+        persona,
+        imageBase64,
+        imageMimeType,
+        caption,
+        recentHistory,
+        projectContext,
+        devilsAdvocate
+      );
+      setMessages(prev => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: 'persona' as const,
+          content: response,
+          timestamp: new Date(),
+        },
+      ]);
+    } catch {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: 'persona' as const,
+          content: "Hmm, I can't quite make that out. Can you describe what you're showing me?",
           timestamp: new Date(),
         },
       ]);
@@ -288,6 +339,7 @@ function App() {
           persona={persona}
           messages={messages}
           onSendMessage={handleSendMessage}
+          onSendImage={handleSendImage}
           isTyping={isTyping}
           onBack={() => setView(view === 'room-1on1' ? 'room' : 'persona')}
           onEndInterview={handleEndInterview}

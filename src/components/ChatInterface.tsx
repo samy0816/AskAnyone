@@ -5,6 +5,7 @@ interface Props {
   persona: Persona;
   messages: Message[];
   onSendMessage: (message: string) => void;
+  onSendImage: (imageBase64: string, imageMimeType: string, caption: string) => void;
   isTyping: boolean;
   onBack: () => void;
   onEndInterview: () => void;
@@ -58,6 +59,7 @@ export default function ChatInterface({
   persona,
   messages,
   onSendMessage,
+  onSendImage,
   isTyping,
   onBack,
   onEndInterview,
@@ -69,8 +71,10 @@ export default function ChatInterface({
   const [showTemplates, setShowTemplates] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('Usability');
   const [tagMenuId, setTagMenuId] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,8 +88,16 @@ export default function ChatInterface({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isTyping) return;
+    if (pendingImage) {
+      onSendImage(pendingImage.base64, pendingImage.mimeType, input.trim());
+      setPendingImage(null);
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      return;
+    }
     const trimmed = input.trim();
-    if (!trimmed || isTyping) return;
+    if (!trimmed) return;
     onSendMessage(trimmed);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -108,6 +120,23 @@ export default function ChatInterface({
     setInput(q);
     setShowTemplates(false);
     textareaRef.current?.focus();
+  };
+
+  const handleImageClick = () => fileInputRef.current?.click();
+
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const base64 = dataUrl.split(',')[1];
+      setPendingImage({ base64, mimeType: file.type, preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
+    // reset so same file can be picked again
+    e.target.value = '';
   };
 
   const formatTime = (date: Date) =>
@@ -198,6 +227,13 @@ export default function ChatInterface({
                 className={`bubble ${msg.role === 'user' ? 'bubble-user' : 'bubble-persona'}`}
                 style={msg.tag ? { borderColor: TAG_STYLES[msg.tag].color, borderWidth: '1.5px', borderStyle: 'solid' } : undefined}
               >
+                {msg.imageBase64 && (
+                  <img
+                    src={`data:${msg.imageMimeType};base64,${msg.imageBase64}`}
+                    alt="shared screen"
+                    className="chat-image-preview"
+                  />
+                )}
                 {msg.content}
                 {msg.role === 'persona' && (
                   <button
@@ -275,25 +311,51 @@ export default function ChatInterface({
 
       {/* Input */}
       <form className="chat-input-bar" onSubmit={handleSubmit}>
-        <textarea
-          ref={textareaRef}
-          className="chat-textarea"
-          value={input}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={`Ask ${persona.name} something...`}
-          rows={1}
-          disabled={isTyping}
-          maxLength={800}
-        />
-        <button
-          type="submit"
-          className="send-btn"
-          disabled={!input.trim() || isTyping}
-          aria-label="Send"
-        >
-          ↑
-        </button>
+        {pendingImage && (
+          <div className="chat-image-attach">
+            <img src={pendingImage.preview} alt="pending" className="chat-image-thumb" />
+            <button type="button" className="chat-image-remove" onClick={() => setPendingImage(null)}>✕</button>
+          </div>
+        )}
+        <div className="chat-input-row">
+          <button
+            type="button"
+            className="chat-attach-btn"
+            onClick={handleImageClick}
+            title="Share a screen"
+            disabled={isTyping}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="14" rx="2"/><polyline points="3 17 7.5 11 11 15 14.5 10 21 17"/>
+            </svg>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageFile}
+          />
+          <textarea
+            ref={textareaRef}
+            className="chat-textarea"
+            value={input}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={pendingImage ? 'Add a caption (optional)...' : `Ask ${persona.name} something...`}
+            rows={1}
+            disabled={isTyping}
+            maxLength={800}
+          />
+          <button
+            type="submit"
+            className="send-btn"
+            disabled={(!input.trim() && !pendingImage) || isTyping}
+            aria-label="Send"
+          >
+            ↑
+          </button>
+        </div>
       </form>
     </div>
   );
